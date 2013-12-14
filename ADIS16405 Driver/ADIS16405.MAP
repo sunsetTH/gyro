@@ -1,0 +1,109 @@
+LARM LINKER/LOCATER V2.40c                                                              04/22/2010  16:31:53  PAGE 1
+
+
+LARM LINKER/LOCATER V2.40c, INVOKED BY:
+C:\KEIL\ARM\BIN\LA.EXE startup.obj, main.obj, ADIS16405_IO.obj TO ADIS16405 CASE CLASSES (DATA (0X10000-0X11FFF), CODE (
+>> 0X80000-0X8F7FF), CONST (0X80000-0X8F7FF))
+
+
+CPU MODE: LITTLE ENDIAN
+
+
+INPUT MODULES INCLUDED:
+  startup.obj (STARTUP)
+         COMMENT TYPE 0: AA V2.40a
+  main.obj (main)
+         COMMENT TYPE 0: CARM V2.40c
+  ADIS16405_IO.obj (ADIS16405_IO)
+         COMMENT TYPE 0: CARM V2.40c
+  C:\KEIL\ARM\LIB\CAL.LIB (FIQ)
+         COMMENT TYPE 0: AA V2.40a
+  C:\KEIL\ARM\LIB\CAL.LIB (DABT)
+         COMMENT TYPE 0: AA V2.40a
+  C:\KEIL\ARM\LIB\CAL.LIB (PABT)
+         COMMENT TYPE 0: AA V2.40a
+  C:\KEIL\ARM\LIB\CAL.LIB (SWI)
+         COMMENT TYPE 0: AA V2.40a
+  C:\KEIL\ARM\LIB\CAL.LIB (UNDEF)
+         COMMENT TYPE 0: AA V2.40a
+
+
+ACTIVE MEMORY CLASSES OF MODULE:  ADIS16405 (STARTUP)
+
+BASE       START      END        USED       MEMORY CLASS
+========================================================
+00000000H  00010000H  00011FFFH  000004C1H  DATA
+00000000H  00080000H  0008F7FFH  000005B8H  CODE
+00000000H  00080000H  0008F7FFH  00000018H  CONST
+
+
+INTERRUPT FUNCTIONS
+
+TYPE  STACK SIZE    FUNCTION NAME
+=================================
+irq                 IRQ_Handler?A
+
+
+
+
+MEMORY MAP OF MODULE:  ADIS16405 (STARTUP)
+
+START      STOP       LENGTH    ALIGN  RELOC  MEMORY CLASS   SEGMENT NAME
+=========================================================================
+00010000H  0001048FH  00000490H     4  UNIT   DATA           STACK
+00010490H  000104C0H  00000031H     4  UNIT   DATA           ?DT0?main
+000104C1H  0007FFFFH  0006FB3FH   ---  ---    **GAP**
+00080000H  000800D3H  000000D4H     4  AT..   CODE           STARTUPCODE
+000800D4H  000800E3H  00000010H     4  UNIT   CONST          ?C_CLRSEG
+000800E4H  000800EBH  00000008H     4  UNIT   CONST          ?C_INITSEG
+000800ECH  0008010BH  00000020H     4  UNIT   CODE           ?PR?putchar?T?main
+0008010CH  0008014BH  00000040H     4  UNIT   CODE           ?PR?IRQ_Handler?A?main
+0008014CH  00080213H  000000C8H     4  UNIT   CODE           ?PR?ADuC7026_Initiate?T?main
+00080214H  0008044BH  00000238H     4  UNIT   CODE           ?PR?main?main
+0008044CH  000805BBH  00000170H     4  UNIT   CODE           ?PR?ReadFromADIS16405ViaSpi?T?ADIS16405_IO
+000805BCH  000805BFH  00000004H     4  UNIT   CODE           ?C?FIQ
+000805C0H  000805C3H  00000004H     4  UNIT   CODE           ?C?DABT
+000805C4H  000805C7H  00000004H     4  UNIT   CODE           ?C?PABT
+000805C8H  000805CFH  00000008H     4  UNIT   CODE           ?C?UNDEF
+
+
+LARM LINKER/LOCATER V2.40c                                                            04/22/2010  16:31:53  PAGE 2
+
+
+
+REMOVED FUNCTIONS OF MODULE:  ADIS16405 (STARTUP)
+
+      ATTRIBUTE  FUNCTION NAME
+      ========================
+       unused    WriteToADIS16405ViaSpi?T
+
+
+
+PUBLIC SYMBOLS OF MODULE:  ADIS16405 (STARTUP)
+
+      VALUE      CLASS    TYPE      PUBLIC SYMBOL NAME
+      ================================================
+      000800D4H  ---      ---       ?C?CLRTAB
+      00080214H  ---      ---       ?C?INIT
+      000800E4H  ---      ---       ?C?INITTAB
+      0008014CH  CODE     ---       ADuC7026_Initiate?T
+      000104B8H  DATA     BYTE      Calculate_Sign
+      000805C0H  CODE     ---       DAbt_Handler?A
+      000805BCH  CODE     ---       FIQ_Handler?A
+      00010490H  DATA     ---       GyroAccMag
+      0008010CH  CODE     ---       IRQ_Handler?A
+      000805C4H  CODE     ---       PAbt_Handler?A
+      0008044CH  CODE     ---       ReadFromADIS16405ViaSpi?T
+      000104B9H  DATA     ---       RegisterData
+      000805C8H  CODE     ---       SWI_Handler?A
+      000805CCH  CODE     ---       Undef_Handler?A
+      00000000H  CODE     ---       WriteToADIS16405ViaSpi?T
+      00080000H  CODE     ---       __startup
+      000800B8H  CODE     ---       exit?A
+      000800BCH  CODE     ---       exit?T
+      00080248H  CODE     ---       main
+      000800ECH  CODE     ---       putchar?T
+      000104B4H  DATA     ---       un
+
+Program Size: data=1217 const=24 code=1464
+LARM RUN COMPLETE.  0 WARNING(S),  0 ERROR(S)

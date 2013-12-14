@@ -1,0 +1,7 @@
+"startup.obj",
+"main.obj",
+"ADIS16405_IO.obj" 
+TO "ADIS16405" 
+CASE 
+CLASSES (DATA (0x10000-0x11FFF), 
+CODE (0x80000-0x8F7FF), CONST (0x80000-0x8F7FF)) 

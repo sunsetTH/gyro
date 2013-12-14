@@ -1,0 +1,647 @@
+ARM COMPILER V2.40c,  main                                                                 22/04/10  16:31:52  PAGE 1   
+
+
+ARM COMPILER V2.40c, COMPILATION OF MODULE main
+OBJECT MODULE PLACED IN main.OBJ
+COMPILER INVOKED BY: C:\Keil\ARM\BIN\CA.exe main.c THUMB BROWSE DEBUG TABS(4) 
+
+stmt  level    source
+
+    1          /*-----------------------ADIS16405 Driver Test Code-----------------------------------
+    2          
+    3          Author:         ADI CAST (China Application Support Team)
+    4          Date:           2010-04-22
+    5          Rev:            V1.0
+    6          Description:    Realize ADIS16405 Driver£¬Use ADuC7026 as MCU£¬Development Tool: KEIL C
+    7                          Test program by reading triple axis gyroscope and triple axis accelerometer 
+    8                          and triple axis magnetometer and send the Z axis acceleration to PC through UART 
+    9          
+   10          ---------------------------------------------------------------------------------------------------------
+             -*/
+   11          #include <ADuC7026.h>
+   12          #include "ADIS16405_IO.h"
+   13          #include "ADIS16405.h"
+   14          
+   15          //Three Axis Gyro and Acceleration and Magnetometer Flag
+   16          #define     GyroX       0       
+   17          #define     GyroY       1
+   18          #define     GyroZ       2
+   19          #define     AccX        3       
+   20          #define     AccY        4
+   21          #define     AccZ        5
+   22          #define     MagX        6       
+   23          #define     MagY        7
+   24          #define     MagZ        8
+   25          
+   26          signed      int     GyroAccMag[9];      //Three Axis Gyro and Three Axis Acceleration and Three Axis Magnetometer Va
+             -lue
+   27          unsigned    char    Calculate_Sign = 0; //Flag for Timer Out
+   28          
+   29          unsigned    char    RegisterData[8];
+   30          union{unsigned int ui;unsigned char uc[4];}un;
+   31          
+   32          void putchar(unsigned char ch)/* Write character to Serial Port  */  
+   33          {          
+   34   1          COMTX = ch;              //COMTX is an 8-bit transmit register.
+   35   1          while(!(0x020==(COMSTA0 & 0x020)))
+   36   1          {;}
+   37   1      }
+   38          
+   39          void IRQ_Handler() __irq
+   40          {
+   41   1          if(0 != (IRQSTA & GP_TIMER_BIT))    //TIMER1 Interrupt
+   42   1          {  
+   43   2              T1CLRI = 0;
+   44   2              Calculate_Sign = 1;
+   45   2              return;
+   46   2          }
+   47   1      }
+   48          void ADuC7026_Initiate(void)
+   49          {
+   50   1          //Clock Initial
+   51   1          POWKEY1 = 0x01;             //Start PLL Setting
+   52   1          POWCON = 0x00;              //Set PLL Active Mode With CD = 0  CPU CLOCK DIVIDER = 41.78MHz
+   53   1          POWKEY2 = 0xF4;             //Finish PLL Setting
+   54   1      
+   55   1          GP1CON = 0x011;                 //PIN set up for UART
+   56   1          GP2DAT = GP2DAT | 0x04040000;   //Disable LCD;
+   57   1          GP0DAT = GP0DAT | 0x02020000;   //Disable LED;
+ARM COMPILER V2.40c,  main                                                                 22/04/10  16:31:52  PAGE 2   
+
+   58   1       
+   59   1          GP0DAT = GP0DAT & 0xDFFFFFFF;   //Configure the P0.5 pin as input for DOUT of ADIS16405
+   60   1      
+   61   1          GP4DAT = GP4DAT | 0x38380000;   //Configure the P4.3 pin as output for CS of ADIS16405, CS Stall High
+   62   1                                          //Configure the P4.4 pin as output for SCLK of ADIS16405, SCLK Stall High
+   63   1                                          //Configure the P4.5 pin as output for DIN of ADIS16405 
+   64   1      /*   
+   65   1          //UART Initial£¬Baud Rate = 9600
+   66   1          COMCON0 = 0x080;  
+   67   1          COMDIV0 = 0x088;            
+   68   1          COMDIV1 = 0x000;
+   69   1          COMCON0 = 0x007; 
+   70   1      */
+   71   1      
+   72   1          //UART Initial£¬Baud Rate = 115200       
+   73   1          COMCON0 = 0x80;                 
+   74   1          COMDIV0 = 0x0B;                 
+   75   1          COMDIV1 = 0x00;
+   76   1          COMCON0 = 0x07;
+   77   1          COMDIV2 = 0x883E;   
+   78   1      
+   79   1          //Timer1 Initial 
+   80   1      //  T1LD = 0xCC010;                 //Interval = 20ms
+   81   1          T1LD = 0x13EC190;               //Interval = 0.5s
+   82   1          T1CON = 0xC0;
+   83   1                          
+   84   1          IRQEN = GP_TIMER_BIT;           //Enable Timer1 Interrupt   
+   85   1      }   
+   86          void main (void)
+   87          { 
+   88   1          ADuC7026_Initiate();
+   89   1          ReadFromADIS16405ViaSpi(XGYRO_OUT,1,RegisterData);
+   90   1      
+   91   1          while(1)
+   92   1          {
+   93   2              if(1 == Calculate_Sign)
+   94   2              {
+   95   3                  Calculate_Sign = 0;
+   96   3      
+   97   3                  ReadFromADIS16405ViaSpi(YGYRO_OUT,1,RegisterData);
+   98   3                  RegisterData[1] &= 0x3F;
+   99   3                  GyroAccMag[GyroX]   = RegisterData[1];
+  100   3                  GyroAccMag[GyroX]   = (GyroAccMag[GyroX]<<8) | RegisterData[0];
+  101   3                  
+  102   3                  ReadFromADIS16405ViaSpi(ZGYRO_OUT,1,RegisterData);
+  103   3                  RegisterData[1] &= 0x3F;
+  104   3                  GyroAccMag[GyroY]   = RegisterData[1];
+  105   3                  GyroAccMag[GyroY]   = (GyroAccMag[GyroY]<<8) | RegisterData[0];     
+  106   3              
+  107   3                  ReadFromADIS16405ViaSpi(XACCL_OUT,1,RegisterData);
+  108   3                  RegisterData[1] &= 0x3F;
+  109   3                  GyroAccMag[GyroZ]   = RegisterData[1];
+  110   3                  GyroAccMag[GyroZ]   = (GyroAccMag[GyroZ]<<8) | RegisterData[0];
+  111   3              
+  112   3                  ReadFromADIS16405ViaSpi(YACCL_OUT,1,RegisterData);
+  113   3                  RegisterData[1] &= 0x3F;
+  114   3                  GyroAccMag[AccX]    = RegisterData[1];
+  115   3                  GyroAccMag[AccX]    = (GyroAccMag[AccX]<<8) | RegisterData[0];
+  116   3          
+  117   3                  ReadFromADIS16405ViaSpi(ZACCL_OUT,1,RegisterData);
+  118   3                  RegisterData[1] &= 0x3F;
+  119   3                  GyroAccMag[AccY]    = RegisterData[1];
+  120   3                  GyroAccMag[AccY]    = (GyroAccMag[AccY]<<8) | RegisterData[0];
+  121   3      
+  122   3                  ReadFromADIS16405ViaSpi(XMAGN_OUT,1,RegisterData);
+  123   3                  RegisterData[1] &= 0x3F;
+ARM COMPILER V2.40c,  main                                                                 22/04/10  16:31:52  PAGE 3   
+
+  124   3                  GyroAccMag[AccZ]    = RegisterData[1];
+  125   3                  GyroAccMag[AccZ]    = (GyroAccMag[AccZ]<<8) | RegisterData[0];
+  126   3              
+  127   3                  ReadFromADIS16405ViaSpi(YMAGN_OUT,1,RegisterData);
+  128   3                  RegisterData[1] &= 0x3F;
+  129   3                  GyroAccMag[MagX]    = RegisterData[1];
+  130   3                  GyroAccMag[MagX]    = (GyroAccMag[MagX]<<8) | RegisterData[0];
+  131   3          
+  132   3                  ReadFromADIS16405ViaSpi(ZMAGN_OUT,1,RegisterData);
+  133   3                  RegisterData[1] &= 0x3F;
+  134   3                  GyroAccMag[MagY]    = RegisterData[1];
+  135   3                  GyroAccMag[MagY]    = (GyroAccMag[MagY]<<8) | RegisterData[0];
+  136   3              
+  137   3                  ReadFromADIS16405ViaSpi(XGYRO_OUT,1,RegisterData);
+  138   3                  RegisterData[1] &= 0x3F;
+  139   3                  GyroAccMag[MagZ]    = RegisterData[1];
+  140   3                  GyroAccMag[MagZ]    = (GyroAccMag[MagZ]<<8) | RegisterData[0];
+  141   3                      
+  142   3                  un.ui = GyroAccMag[AccZ]; 
+  143   3                  putchar(un.uc[1]);
+  144   3                  putchar(un.uc[0]);
+  145   3      
+  146   3              }
+  147   2          }   
+  148   1      
+  149   1      }
+ARM COMPILER V2.40c,  main                                                                 22/04/10  16:31:52  PAGE 4   
+
+ASSEMBLY LISTING OF GENERATED OBJECT CODE
+
+
+
+*** EXTERNALS:
+ EXTERN CODE16 (ReadFromADIS16405ViaSpi?T)
+ EXTERN NUMBER (__startup)
+
+
+
+*** PUBLICS:
+ PUBLIC         putchar?T
+ PUBLIC         IRQ_Handler?A
+ PUBLIC         ADuC7026_Initiate?T
+ PUBLIC         main
+ PUBLIC         GyroAccMag
+ PUBLIC         Calculate_Sign
+ PUBLIC         RegisterData
+ PUBLIC         un
+
+
+
+*** DATA SEGMENT '?DT0?main':
+ 00000000          GyroAccMag:
+ 00000000            DS          36
+ 00000024          un:
+ 00000024            DS          4
+ 00000028          Calculate_Sign:
+ 00000028           BEGIN_INIT
+ 00000028  00        DB          0x0
+ 00000029           END_INIT
+ 00000029          RegisterData:
+ 00000029            DS          8
+
+
+
+*** CODE SEGMENT '?PR?putchar?T?main':
+   32: void putchar(unsigned char ch)/* Write character to Serial Port  */  
+ 00000000  1C01      MOV         R1,R0 ; ch
+ 00000002  ---- Variable 'ch' assigned to Register 'R1' ----
+   34:     COMTX = ch;              //COMTX is an 8-bit transmit register.
+ 00000002  1C08      MOV         R0,R1 ; ch
+ 00000004  0601      LSL         R1,R0,#0x18 ; ch
+ 00000006  0E09      LSR         R1,R1,#0x18
+ 00000008  4800      LDR         R0,=0xFFFF0700
+ 0000000A  6001      STR         R1,[R0,#0x0]
+   36:     {;}
+ 0000000C          L_1:
+ 0000000C  4800      LDR         R0,=0xFFFF0714
+ 0000000E  6800      LDR         R0,[R0,#0x0]
+ 00000010  2120      MOV         R1,#0x20
+ 00000012  4208      TST         R0,R1
+ 00000014  D0FA      BEQ         L_1  ; T=0x0000000C
+   37: }
+ 00000016  4770      BX          R14
+ 00000018          ENDP ; 'putchar?T'
+
+
+*** CODE SEGMENT '?PR?IRQ_Handler?A?main':
+   39: void IRQ_Handler() __irq
+ 00000000  E92D0003  STMDB       R13!,{R0-R1}
+   41:     if(0 != (IRQSTA & GP_TIMER_BIT))    //TIMER1 Interrupt
+ 00000004  E5100000  LDR         R0,=0xFFFF0000
+ 00000008  E5900000  LDR         R0,[R0,#0x0]
+ 0000000C  E3100008  TST         R0,#0x0008
+ 00000010  0A000005  BEQ         L_6  ; Targ=0x2C
+   43:         T1CLRI = 0;
+ 00000014  E3A01000  MOV         R1,#0x0
+ 00000018  E5100000  LDR         R0,=0xFFFF032C
+ 0000001C  E5801000  STR         R1,[R0,#0x0]
+   44:         Calculate_Sign = 1;
+ 00000020  E3A01001  MOV         R1,#0x1
+ 00000024  E5100000  LDR         R0,=Calculate_Sign ; Calculate_Sign
+ 00000028  E5C01000  STRB        R1,[R0,#0x0] ; Calculate_Sign
+   47: }
+ARM COMPILER V2.40c,  main                                                                 22/04/10  16:31:52  PAGE 5   
+
+ 0000002C          L_6:
+ 0000002C  E8BD0003  LDMIA       R13!,{R0-R1}
+ 00000030  E25EF004  SUBS        R15,R14,#0x0004
+ 00000034          ENDP ; 'IRQ_Handler?A'
+
+
+*** CODE SEGMENT '?PR?ADuC7026_Initiate?T?main':
+   51:     POWKEY1 = 0x01;             //Start PLL Setting
+ 00000000  2101      MOV         R1,#0x1
+ 00000002  4800      LDR         R0,=0xFFFF0404
+ 00000004  6001      STR         R1,[R0,#0x0]
+   52:     POWCON = 0x00;              //Set PLL Active Mode With CD = 0  CPU CLOCK DIVIDER = 41.78MHz
+ 00000006  2100      MOV         R1,#0x0
+ 00000008  4800      LDR         R0,=0xFFFF0408
+ 0000000A  6001      STR         R1,[R0,#0x0]
+   53:     POWKEY2 = 0xF4;             //Finish PLL Setting
+ 0000000C  22F4      MOV         R2,#0xF4
+ 0000000E  4800      LDR         R0,=0xFFFF040C
+ 00000010  6002      STR         R2,[R0,#0x0]
+   55:     GP1CON = 0x011;                 //PIN set up for UART
+ 00000012  2211      MOV         R2,#0x11
+ 00000014  4800      LDR         R0,=0xFFFFF404
+ 00000016  6002      STR         R2,[R0,#0x0]
+   56:     GP2DAT = GP2DAT | 0x04040000;   //Disable LCD;
+ 00000018  4800      LDR         R0,=0xFFFFF440
+ 0000001A  6802      LDR         R2,[R0,#0x0]
+ 0000001C  4800      LDR         R0,=0x4040000
+ 0000001E  4302      ORR         R2,R0
+ 00000020  4800      LDR         R0,=0xFFFFF440
+ 00000022  6002      STR         R2,[R0,#0x0]
+   57:     GP0DAT = GP0DAT | 0x02020000;   //Disable LED;
+ 00000024  4800      LDR         R0,=0xFFFFF420
+ 00000026  6802      LDR         R2,[R0,#0x0]
+ 00000028  4800      LDR         R0,=0x2020000
+ 0000002A  4302      ORR         R2,R0
+ 0000002C  4800      LDR         R0,=0xFFFFF420
+ 0000002E  6002      STR         R2,[R0,#0x0]
+   59:     GP0DAT = GP0DAT & 0xDFFFFFFF;   //Configure the P0.5 pin as input for DOUT of ADIS16405
+ 00000030  4800      LDR         R0,=0xFFFFF420
+ 00000032  6802      LDR         R2,[R0,#0x0]
+ 00000034  4800      LDR         R0,=0x20000000
+ 00000036  4382      BIC         R2,R0
+ 00000038  4800      LDR         R0,=0xFFFFF420
+ 0000003A  6002      STR         R2,[R0,#0x0]
+   61:     GP4DAT = GP4DAT | 0x38380000;   //Configure the P4.3 pin as output for CS of ADIS16405, CS Stall High
+ 0000003C  4800      LDR         R0,=0xFFFFF460
+ 0000003E  6802      LDR         R2,[R0,#0x0]
+ 00000040  4800      LDR         R0,=0x38380000
+ 00000042  4302      ORR         R2,R0
+ 00000044  4800      LDR         R0,=0xFFFFF460
+ 00000046  6002      STR         R2,[R0,#0x0]
+   73:     COMCON0 = 0x80;                 
+ 00000048  2280      MOV         R2,#0x80
+ 0000004A  4800      LDR         R0,=0xFFFF070C
+ 0000004C  6002      STR         R2,[R0,#0x0]
+   74:        COMDIV0 = 0x0B;                  
+ 0000004E  220B      MOV         R2,#0xB
+ 00000050  4800      LDR         R0,=0xFFFF0700
+ 00000052  6002      STR         R2,[R0,#0x0]
+   75:     COMDIV1 = 0x00;
+ 00000054  4800      LDR         R0,=0xFFFF0704
+ 00000056  6001      STR         R1,[R0,#0x0]
+   76:        COMCON0 = 0x07;
+ 00000058  2107      MOV         R1,#0x7
+ 0000005A  4800      LDR         R0,=0xFFFF070C
+ 0000005C  6001      STR         R1,[R0,#0x0]
+   77:       COMDIV2 = 0x883E; 
+ 0000005E  4800      LDR         R1,=0x883E
+ARM COMPILER V2.40c,  main                                                                 22/04/10  16:31:52  PAGE 6   
+
+ 00000060  4800      LDR         R0,=0xFFFF072C
+ 00000062  6001      STR         R1,[R0,#0x0]
+   81:     T1LD = 0x13EC190;               //Interval = 0.5s
+ 00000064  4800      LDR         R1,=0x13EC190
+ 00000066  4800      LDR         R0,=0xFFFF0320
+ 00000068  6001      STR         R1,[R0,#0x0]
+   82:     T1CON = 0xC0;
+ 0000006A  21C0      MOV         R1,#0xC0
+ 0000006C  4800      LDR         R0,=0xFFFF0328
+ 0000006E  6001      STR         R1,[R0,#0x0]
+   84:     IRQEN = GP_TIMER_BIT;           //Enable Timer1 Interrupt   
+ 00000070  2108      MOV         R1,#0x8
+ 00000072  4800      LDR         R0,=0xFFFF0008
+ 00000074  6001      STR         R1,[R0,#0x0]
+   85: }   
+ 00000076  4770      BX          R14
+ 00000078          ENDP ; 'ADuC7026_Initiate?T'
+
+
+*** CODE SEGMENT '?PR?main?main':
+   86: void main (void)
+ 00000000  B500      PUSH        {LR}
+   88:     ADuC7026_Initiate();
+ 00000002  F7FF      BL          ADuC7026_Initiate?T  ; T=0x0001  (1)
+ 00000004  FFFD      BL          ADuC7026_Initiate?T  ; T=0x0001  (2)
+   89:     ReadFromADIS16405ViaSpi(XGYRO_OUT,1,RegisterData);
+ 00000006  4800      LDR         R2,=RegisterData ; RegisterData
+ 00000008  2004      MOV         R0,#0x4
+ 0000000A  2101      MOV         R1,#0x1
+ 0000000C  F7FF      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (1)
+ 0000000E  FFF8      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (2)
+   91:     while(1)
+ 00000010          L_9:
+   93:         if(1 == Calculate_Sign)
+ 00000010  4800      LDR         R0,=Calculate_Sign ; Calculate_Sign
+ 00000012  7800      LDRB        R0,[R0,#0x0] ; Calculate_Sign
+ 00000014  2801      CMP         R0,#0x1
+ 00000016  D1FB      BNE         L_9  ; T=0x00000010
+   95:             Calculate_Sign = 0;
+ 00000018  2100      MOV         R1,#0x0
+ 0000001A  4800      LDR         R0,=Calculate_Sign ; Calculate_Sign
+ 0000001C  7001      STRB        R1,[R0,#0x0] ; Calculate_Sign
+   97:             ReadFromADIS16405ViaSpi(YGYRO_OUT,1,RegisterData);
+ 0000001E  4800      LDR         R2,=RegisterData ; RegisterData
+ 00000020  2006      MOV         R0,#0x6
+ 00000022  2101      MOV         R1,#0x1
+ 00000024  F7FF      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (1)
+ 00000026  FFEC      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (2)
+   98:             RegisterData[1] &= 0x3F;
+ 00000028  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 0000002A  7801      LDRB        R1,[R0,#0x0] ; RegisterData+1
+ 0000002C  203F      MOV         R0,#0x3F
+ 0000002E  4001      AND         R1,R0
+ 00000030  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000032  7001      STRB        R1,[R0,#0x0] ; RegisterData+1
+   99:             GyroAccMag[GyroX]   = RegisterData[1];
+ 00000034  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000036  7800      LDRB        R0,[R0,#0x0] ; RegisterData+1
+ 00000038  1C01      MOV         R1,R0
+ 0000003A  4800      LDR         R0,=GyroAccMag ; GyroAccMag
+ 0000003C  6001      STR         R1,[R0,#0x0] ; GyroAccMag
+  100:             GyroAccMag[GyroX]   = (GyroAccMag[GyroX]<<8) | RegisterData[0];
+ 0000003E  4800      LDR         R0,=GyroAccMag ; GyroAccMag
+ 00000040  6801      LDR         R1,[R0,#0x0] ; GyroAccMag
+ 00000042  0209      LSL         R1,R1,#0x8
+ 00000044  4800      LDR         R0,=RegisterData ; RegisterData
+ 00000046  7800      LDRB        R0,[R0,#0x0] ; RegisterData
+ 00000048  4301      ORR         R1,R0
+ARM COMPILER V2.40c,  main                                                                 22/04/10  16:31:52  PAGE 7   
+
+ 0000004A  4800      LDR         R0,=GyroAccMag ; GyroAccMag
+ 0000004C  6001      STR         R1,[R0,#0x0] ; GyroAccMag
+  102:             ReadFromADIS16405ViaSpi(ZGYRO_OUT,1,RegisterData);
+ 0000004E  4800      LDR         R2,=RegisterData ; RegisterData
+ 00000050  2008      MOV         R0,#0x8
+ 00000052  2101      MOV         R1,#0x1
+ 00000054  F7FF      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (1)
+ 00000056  FFD4      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (2)
+  103:             RegisterData[1] &= 0x3F;
+ 00000058  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 0000005A  7801      LDRB        R1,[R0,#0x0] ; RegisterData+1
+ 0000005C  203F      MOV         R0,#0x3F
+ 0000005E  4001      AND         R1,R0
+ 00000060  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000062  7001      STRB        R1,[R0,#0x0] ; RegisterData+1
+  104:             GyroAccMag[GyroY]   = RegisterData[1];
+ 00000064  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000066  7800      LDRB        R0,[R0,#0x0] ; RegisterData+1
+ 00000068  1C01      MOV         R1,R0
+ 0000006A  4800      LDR         R0,=GyroAccMag + 0x4 ; GyroAccMag+4
+ 0000006C  6001      STR         R1,[R0,#0x0] ; GyroAccMag+4
+  105:             GyroAccMag[GyroY]   = (GyroAccMag[GyroY]<<8) | RegisterData[0];     
+ 0000006E  4800      LDR         R0,=GyroAccMag + 0x4 ; GyroAccMag+4
+ 00000070  6801      LDR         R1,[R0,#0x0] ; GyroAccMag+4
+ 00000072  0209      LSL         R1,R1,#0x8
+ 00000074  4800      LDR         R0,=RegisterData ; RegisterData
+ 00000076  7800      LDRB        R0,[R0,#0x0] ; RegisterData
+ 00000078  4301      ORR         R1,R0
+ 0000007A  4800      LDR         R0,=GyroAccMag + 0x4 ; GyroAccMag+4
+ 0000007C  6001      STR         R1,[R0,#0x0] ; GyroAccMag+4
+  107:             ReadFromADIS16405ViaSpi(XACCL_OUT,1,RegisterData);
+ 0000007E  4800      LDR         R2,=RegisterData ; RegisterData
+ 00000080  200A      MOV         R0,#0xA
+ 00000082  2101      MOV         R1,#0x1
+ 00000084  F7FF      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (1)
+ 00000086  FFBC      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (2)
+  108:             RegisterData[1] &= 0x3F;
+ 00000088  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 0000008A  7801      LDRB        R1,[R0,#0x0] ; RegisterData+1
+ 0000008C  203F      MOV         R0,#0x3F
+ 0000008E  4001      AND         R1,R0
+ 00000090  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000092  7001      STRB        R1,[R0,#0x0] ; RegisterData+1
+  109:             GyroAccMag[GyroZ]   = RegisterData[1];
+ 00000094  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000096  7800      LDRB        R0,[R0,#0x0] ; RegisterData+1
+ 00000098  1C01      MOV         R1,R0
+ 0000009A  4800      LDR         R0,=GyroAccMag + 0x8 ; GyroAccMag+8
+ 0000009C  6001      STR         R1,[R0,#0x0] ; GyroAccMag+8
+  110:             GyroAccMag[GyroZ]   = (GyroAccMag[GyroZ]<<8) | RegisterData[0];
+ 0000009E  4800      LDR         R0,=GyroAccMag + 0x8 ; GyroAccMag+8
+ 000000A0  6801      LDR         R1,[R0,#0x0] ; GyroAccMag+8
+ 000000A2  0209      LSL         R1,R1,#0x8
+ 000000A4  4800      LDR         R0,=RegisterData ; RegisterData
+ 000000A6  7800      LDRB        R0,[R0,#0x0] ; RegisterData
+ 000000A8  4301      ORR         R1,R0
+ 000000AA  4800      LDR         R0,=GyroAccMag + 0x8 ; GyroAccMag+8
+ 000000AC  6001      STR         R1,[R0,#0x0] ; GyroAccMag+8
+  112:             ReadFromADIS16405ViaSpi(YACCL_OUT,1,RegisterData);
+ 000000AE  4800      LDR         R2,=RegisterData ; RegisterData
+ 000000B0  200C      MOV         R0,#0xC
+ 000000B2  2101      MOV         R1,#0x1
+ 000000B4  F7FF      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (1)
+ 000000B6  FFA4      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (2)
+  113:             RegisterData[1] &= 0x3F;
+ 000000B8  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ARM COMPILER V2.40c,  main                                                                 22/04/10  16:31:52  PAGE 8   
+
+ 000000BA  7801      LDRB        R1,[R0,#0x0] ; RegisterData+1
+ 000000BC  203F      MOV         R0,#0x3F
+ 000000BE  4001      AND         R1,R0
+ 000000C0  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 000000C2  7001      STRB        R1,[R0,#0x0] ; RegisterData+1
+  114:             GyroAccMag[AccX]    = RegisterData[1];
+ 000000C4  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 000000C6  7800      LDRB        R0,[R0,#0x0] ; RegisterData+1
+ 000000C8  1C01      MOV         R1,R0
+ 000000CA  4800      LDR         R0,=GyroAccMag + 0xC ; GyroAccMag+12
+ 000000CC  6001      STR         R1,[R0,#0x0] ; GyroAccMag+12
+  115:             GyroAccMag[AccX]    = (GyroAccMag[AccX]<<8) | RegisterData[0];
+ 000000CE  4800      LDR         R0,=GyroAccMag + 0xC ; GyroAccMag+12
+ 000000D0  6801      LDR         R1,[R0,#0x0] ; GyroAccMag+12
+ 000000D2  0209      LSL         R1,R1,#0x8
+ 000000D4  4800      LDR         R0,=RegisterData ; RegisterData
+ 000000D6  7800      LDRB        R0,[R0,#0x0] ; RegisterData
+ 000000D8  4301      ORR         R1,R0
+ 000000DA  4800      LDR         R0,=GyroAccMag + 0xC ; GyroAccMag+12
+ 000000DC  6001      STR         R1,[R0,#0x0] ; GyroAccMag+12
+  117:             ReadFromADIS16405ViaSpi(ZACCL_OUT,1,RegisterData);
+ 000000DE  4800      LDR         R2,=RegisterData ; RegisterData
+ 000000E0  200E      MOV         R0,#0xE
+ 000000E2  2101      MOV         R1,#0x1
+ 000000E4  F7FF      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (1)
+ 000000E6  FF8C      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (2)
+  118:             RegisterData[1] &= 0x3F;
+ 000000E8  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 000000EA  7801      LDRB        R1,[R0,#0x0] ; RegisterData+1
+ 000000EC  203F      MOV         R0,#0x3F
+ 000000EE  4001      AND         R1,R0
+ 000000F0  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 000000F2  7001      STRB        R1,[R0,#0x0] ; RegisterData+1
+  119:             GyroAccMag[AccY]    = RegisterData[1];
+ 000000F4  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 000000F6  7800      LDRB        R0,[R0,#0x0] ; RegisterData+1
+ 000000F8  1C01      MOV         R1,R0
+ 000000FA  4800      LDR         R0,=GyroAccMag + 0x10 ; GyroAccMag+16
+ 000000FC  6001      STR         R1,[R0,#0x0] ; GyroAccMag+16
+  120:             GyroAccMag[AccY]    = (GyroAccMag[AccY]<<8) | RegisterData[0];
+ 000000FE  4800      LDR         R0,=GyroAccMag + 0x10 ; GyroAccMag+16
+ 00000100  6801      LDR         R1,[R0,#0x0] ; GyroAccMag+16
+ 00000102  0209      LSL         R1,R1,#0x8
+ 00000104  4800      LDR         R0,=RegisterData ; RegisterData
+ 00000106  7800      LDRB        R0,[R0,#0x0] ; RegisterData
+ 00000108  4301      ORR         R1,R0
+ 0000010A  4800      LDR         R0,=GyroAccMag + 0x10 ; GyroAccMag+16
+ 0000010C  6001      STR         R1,[R0,#0x0] ; GyroAccMag+16
+  122:             ReadFromADIS16405ViaSpi(XMAGN_OUT,1,RegisterData);
+ 0000010E  4800      LDR         R2,=RegisterData ; RegisterData
+ 00000110  2010      MOV         R0,#0x10
+ 00000112  2101      MOV         R1,#0x1
+ 00000114  F7FF      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (1)
+ 00000116  FF74      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (2)
+  123:             RegisterData[1] &= 0x3F;
+ 00000118  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 0000011A  7801      LDRB        R1,[R0,#0x0] ; RegisterData+1
+ 0000011C  203F      MOV         R0,#0x3F
+ 0000011E  4001      AND         R1,R0
+ 00000120  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000122  7001      STRB        R1,[R0,#0x0] ; RegisterData+1
+  124:             GyroAccMag[AccZ]    = RegisterData[1];
+ 00000124  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000126  7800      LDRB        R0,[R0,#0x0] ; RegisterData+1
+ 00000128  1C01      MOV         R1,R0
+ 0000012A  4800      LDR         R0,=GyroAccMag + 0x14 ; GyroAccMag+20
+ARM COMPILER V2.40c,  main                                                                 22/04/10  16:31:52  PAGE 9   
+
+ 0000012C  6001      STR         R1,[R0,#0x0] ; GyroAccMag+20
+  125:             GyroAccMag[AccZ]    = (GyroAccMag[AccZ]<<8) | RegisterData[0];
+ 0000012E  4800      LDR         R0,=GyroAccMag + 0x14 ; GyroAccMag+20
+ 00000130  6801      LDR         R1,[R0,#0x0] ; GyroAccMag+20
+ 00000132  0209      LSL         R1,R1,#0x8
+ 00000134  4800      LDR         R0,=RegisterData ; RegisterData
+ 00000136  7800      LDRB        R0,[R0,#0x0] ; RegisterData
+ 00000138  4301      ORR         R1,R0
+ 0000013A  4800      LDR         R0,=GyroAccMag + 0x14 ; GyroAccMag+20
+ 0000013C  6001      STR         R1,[R0,#0x0] ; GyroAccMag+20
+  127:             ReadFromADIS16405ViaSpi(YMAGN_OUT,1,RegisterData);
+ 0000013E  4800      LDR         R2,=RegisterData ; RegisterData
+ 00000140  2012      MOV         R0,#0x12
+ 00000142  2101      MOV         R1,#0x1
+ 00000144  F7FF      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (1)
+ 00000146  FF5C      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (2)
+  128:             RegisterData[1] &= 0x3F;
+ 00000148  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 0000014A  7801      LDRB        R1,[R0,#0x0] ; RegisterData+1
+ 0000014C  203F      MOV         R0,#0x3F
+ 0000014E  4001      AND         R1,R0
+ 00000150  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000152  7001      STRB        R1,[R0,#0x0] ; RegisterData+1
+  129:             GyroAccMag[MagX]    = RegisterData[1];
+ 00000154  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000156  7800      LDRB        R0,[R0,#0x0] ; RegisterData+1
+ 00000158  1C01      MOV         R1,R0
+ 0000015A  4800      LDR         R0,=GyroAccMag + 0x18 ; GyroAccMag+24
+ 0000015C  6001      STR         R1,[R0,#0x0] ; GyroAccMag+24
+  130:             GyroAccMag[MagX]    = (GyroAccMag[MagX]<<8) | RegisterData[0];
+ 0000015E  4800      LDR         R0,=GyroAccMag + 0x18 ; GyroAccMag+24
+ 00000160  6801      LDR         R1,[R0,#0x0] ; GyroAccMag+24
+ 00000162  0209      LSL         R1,R1,#0x8
+ 00000164  4800      LDR         R0,=RegisterData ; RegisterData
+ 00000166  7800      LDRB        R0,[R0,#0x0] ; RegisterData
+ 00000168  4301      ORR         R1,R0
+ 0000016A  4800      LDR         R0,=GyroAccMag + 0x18 ; GyroAccMag+24
+ 0000016C  6001      STR         R1,[R0,#0x0] ; GyroAccMag+24
+  132:             ReadFromADIS16405ViaSpi(ZMAGN_OUT,1,RegisterData);
+ 0000016E  4800      LDR         R2,=RegisterData ; RegisterData
+ 00000170  2014      MOV         R0,#0x14
+ 00000172  2101      MOV         R1,#0x1
+ 00000174  F7FF      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (1)
+ 00000176  FF44      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (2)
+  133:             RegisterData[1] &= 0x3F;
+ 00000178  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 0000017A  7801      LDRB        R1,[R0,#0x0] ; RegisterData+1
+ 0000017C  203F      MOV         R0,#0x3F
+ 0000017E  4001      AND         R1,R0
+ 00000180  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000182  7001      STRB        R1,[R0,#0x0] ; RegisterData+1
+  134:             GyroAccMag[MagY]    = RegisterData[1];
+ 00000184  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 00000186  7800      LDRB        R0,[R0,#0x0] ; RegisterData+1
+ 00000188  1C01      MOV         R1,R0
+ 0000018A  4800      LDR         R0,=GyroAccMag + 0x1C ; GyroAccMag+28
+ 0000018C  6001      STR         R1,[R0,#0x0] ; GyroAccMag+28
+  135:             GyroAccMag[MagY]    = (GyroAccMag[MagY]<<8) | RegisterData[0];
+ 0000018E  4800      LDR         R0,=GyroAccMag + 0x1C ; GyroAccMag+28
+ 00000190  6801      LDR         R1,[R0,#0x0] ; GyroAccMag+28
+ 00000192  0209      LSL         R1,R1,#0x8
+ 00000194  4800      LDR         R0,=RegisterData ; RegisterData
+ 00000196  7800      LDRB        R0,[R0,#0x0] ; RegisterData
+ 00000198  4301      ORR         R1,R0
+ 0000019A  4800      LDR         R0,=GyroAccMag + 0x1C ; GyroAccMag+28
+ 0000019C  6001      STR         R1,[R0,#0x0] ; GyroAccMag+28
+ARM COMPILER V2.40c,  main                                                                 22/04/10  16:31:52  PAGE 10  
+
+  137:             ReadFromADIS16405ViaSpi(XGYRO_OUT,1,RegisterData);
+ 0000019E  4800      LDR         R2,=RegisterData ; RegisterData
+ 000001A0  2004      MOV         R0,#0x4
+ 000001A2  2101      MOV         R1,#0x1
+ 000001A4  F7FF      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (1)
+ 000001A6  FF2C      BL          ReadFromADIS16405ViaSpi?T  ; T=0x0001  (2)
+  138:             RegisterData[1] &= 0x3F;
+ 000001A8  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 000001AA  7801      LDRB        R1,[R0,#0x0] ; RegisterData+1
+ 000001AC  203F      MOV         R0,#0x3F
+ 000001AE  4001      AND         R1,R0
+ 000001B0  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 000001B2  7001      STRB        R1,[R0,#0x0] ; RegisterData+1
+  139:             GyroAccMag[MagZ]    = RegisterData[1];
+ 000001B4  4800      LDR         R0,=RegisterData + 0x1 ; RegisterData+1
+ 000001B6  7800      LDRB        R0,[R0,#0x0] ; RegisterData+1
+ 000001B8  1C01      MOV         R1,R0
+ 000001BA  4800      LDR         R0,=GyroAccMag + 0x20 ; GyroAccMag+32
+ 000001BC  6001      STR         R1,[R0,#0x0] ; GyroAccMag+32
+  140:             GyroAccMag[MagZ]    = (GyroAccMag[MagZ]<<8) | RegisterData[0];
+ 000001BE  4800      LDR         R0,=GyroAccMag + 0x20 ; GyroAccMag+32
+ 000001C0  6801      LDR         R1,[R0,#0x0] ; GyroAccMag+32
+ 000001C2  0209      LSL         R1,R1,#0x8
+ 000001C4  4800      LDR         R0,=RegisterData ; RegisterData
+ 000001C6  7800      LDRB        R0,[R0,#0x0] ; RegisterData
+ 000001C8  4301      ORR         R1,R0
+ 000001CA  4800      LDR         R0,=GyroAccMag + 0x20 ; GyroAccMag+32
+ 000001CC  6001      STR         R1,[R0,#0x0] ; GyroAccMag+32
+  142:             un.ui = GyroAccMag[AccZ]; 
+ 000001CE  4800      LDR         R0,=GyroAccMag + 0x14 ; GyroAccMag+20
+ 000001D0  6801      LDR         R1,[R0,#0x0] ; GyroAccMag+20
+ 000001D2  4800      LDR         R0,=un ; un
+ 000001D4  6001      STR         R1,[R0,#0x0] ; un
+  143:             putchar(un.uc[1]);
+ 000001D6  4800      LDR         R0,=un + 0x1 ; un+1
+ 000001D8  7800      LDRB        R0,[R0,#0x0] ; un+1
+ 000001DA  F7FF      BL          putchar?T  ; T=0x0001  (1)
+ 000001DC  FF11      BL          putchar?T  ; T=0x0001  (2)
+  144:             putchar(un.uc[0]);
+ 000001DE  4800      LDR         R0,=un ; un
+ 000001E0  7800      LDRB        R0,[R0,#0x0] ; un
+ 000001E2  F7FF      BL          putchar?T  ; T=0x0001  (1)
+ 000001E4  FF0D      BL          putchar?T  ; T=0x0001  (2)
+  147:     }    
+ 000001E6  E713      B           L_9  ; T=0x00000010
+ 000001E8  BC08      POP         {R3}
+ 000001EA  4718      BX          R3
+ 000001EC          ENDP ; 'main'
+
+
+
+Module Information          Static
+----------------------------------
+  code size            =    ------
+  data size            =        49
+  const size           =    ------
+End of Module Information.
+
+
+ARM COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
